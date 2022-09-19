@@ -5,61 +5,50 @@
 #include <sys/types.h>
 #include <sys/wait.h> 
 
-int pfds[2]; // pipe descriptor
+int main(int argc, char *argv[]) {
+    // there should be 2 arguments, main.exe and program file name
+    if(argc != 2) {
+        printf("usage: %s filename");
+        return 0;
+    }
 
-int main() {    
-    int result;
+    int p1[2]; // memory -> CPU pipe
+    int p2[2]; // CPU -> memory pipe
 
-    result = pipe(pfds);
-    // check if pipe failed
-    if (result == -1)
-        exit(1);
+    if(pipe(p1) == -1) { return 1001; } // open pipe and return code if error
+    if(pipe(p2) == -1) { return 1002; } 
 
-    result = fork();
-    // check if fork failed
-    if (result == -1)
-        exit(1);
+    int pid = fork();
+    if(pid == -1) { return 1003; } // fork process and return if error
 
-    if (result == 0) 
-    {
+    if (pid == 0) {
         // memory code
+
+        // memory array:
         int memory[2000]; //0-999 for user program, 1000-1999 for system code
         memory[500]  = 45; // place 45 in address 500 for testing
 
-        // split into a second process for reading
-        result = fork();
-        if(result == -1)
-            exit(1);
-
-        if(result == 0) {
-            // read address from pipe and then write value at that address to pipe
-            int address;
-            read(pfds[0], &address, sizeof(address));
-            printf("memory read %u from pipe\n", address);
-            int value = memory[address];
-            printf("memory writing %u to pipe\n", value);
-            write(pfds[1], &value, sizeof(value));
-            _exit(0);
-        }
-        else {
-            waitpid(-1, NULL, 0); // wait for child process to finish read/write
-        }
+        // read user program into memory
+        FILE *program = fopen(argv[1], "r");
+        if(program == NULL) { return 1008; }
         
 
-        /* read address from pipe, then read value from pipe, then write the value to the address in memory
-        //waitpid(-1, NULL, 0); // wait for cpu to write address to pipe
-        read(pfds[0], &address, sizeof(address));
-        printf("memory read address: %u from pipe\n", address);
-        //waitpid(-1, NULL, 0); // wait for cpu to write value to pipe
-        read(pfds[0], &value, sizeof(value));
-        printf("memory read value: %u from pipe\n", value);
-        memory[address] = value;
-        printf("memory[%u]: %u", address, value);
-        _exit(0);*/
-    }
-    else
-    {
-        // cpu code
+        close(p1[0]); // memory doesn't need to read from p1
+        close(p2[1]); // memory doesn't need to write to p2
+        
+        // instruction fetch
+        int address;
+        if(read(p2[0], &address, sizeof(address)) == - 1) { return 1004; } // read from pipe2 and return code if error
+        printf("Received %u\n", address);
+        int val = memory[address];
+        if(write(p1[1], &val, sizeof(val)) == -1) { return 1005; } // write to pipe1 and return code if error
+        printf("Wrote %u\n", val);    
+        close(p1[1]);
+        close(p2[0]);
+
+    } else {
+        // CPU code
+
         // registers:
         int PC; // program counter
         int SP; // stack pointer
@@ -67,29 +56,20 @@ int main() {
         int AC; // accumulator
         int X; // user register
         int Y; // user register
+        
+        close(p1[1]); // CPU doesn't need to write to p1
+        close(p2[0]); // CPU doesn't need to read from p2
 
-        printf("testing memory read\n");
-        // write address to pipe and then read value of that address from pipe
+        // instruction fetch
         int address = 500;
-        printf("CPU writing %u to pipe\n", address);
-        write(pfds[1], &address, sizeof(address));
-        //waitpid(-1, NULL, 0); // wait for memory to read address and write value to pipe
-        int value;
-        read(pfds[0], &value, sizeof(value));
-        printf("CPU read %u from pipe\n", value);
-        waitpid(-1, NULL, 0);
-
-        /*
-        printf("testing memory write\n");
-        // send value and address to pipe to write to memory
-        address = 500;
-        value = 60;
-        printf("CPU writing address: %u to pipe\n", address);
-        write(pfds[1], &address, sizeof(address));
-        //waitpid(-1, NULL, 0); // wait for memory to read address
-        printf("CPU writing value: %u to pipe\n", value);
-        write(pfds[1], &value, sizeof(value));
-        //waitpid(-1, NULL, 0); // wait for memory to read value*/
+        if(write(p2[1], &address, sizeof(address)) == -1) { return 1006; } // write to pipe2 and return code if error
+        printf("Wrote %u\n", address);
+        int result;
+        if(read(p1[0], &result, sizeof(result)) == -1) { return 1007; } // read from pipe1 and return code if error
+        printf("Result is %u\n", result);
+        close(p1[0]);
+        close(p2[1]);
+        wait(NULL);
         
    }    
 }
