@@ -1,3 +1,4 @@
+/* Ethan Fischer CS 4348.005 Project 1 Fall 2022 9/14 */
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -56,31 +57,23 @@ int main(int argc, char *argv[]) {
         // read user program into memory
         FILE *program = fopen(argv[1], "r");
         if(program == NULL) { return 1003; }
-        printf("Program: \n");
         char line[100];
         int address = 0;
         // read file line by line
-        while(fgets(line, 100, program)) { 
-            if(line[0] == '\n') {
-                continue; // move to next line if line is empty
+        while(fgets(line, 100, program)) {
+            if(line[0] == '.') {
+                address = parseValue(line);
             }
-            else if(line[0] == '.') {
-                // update address if first char is a .
-                address = parseValue(line); 
+            else if(isspace(line[0])) {
+                continue;
             }
             else {
-                // store opcode/value into memory array
-                int value = parseValue(line);
-                memory[address] = value;
+                memory[address] = parseValue(line);
                 address++;
             }
-            
         }
         fclose(program); // done reading, close file
 
-        
-        
-        
         close(p1[0]); // memory doesn't need to read from p1
         close(p2[1]); // memory doesn't need to write to p2
         
@@ -106,7 +99,7 @@ int main(int argc, char *argv[]) {
         close(p1[1]);
         close(p2[0]);
 
-    } else {
+    } else {    
         // CPU code
 
         // registers
@@ -127,32 +120,34 @@ int main(int argc, char *argv[]) {
 
         int instructionCount = 1;
         char *ch = argv[2];
-        int interruptTimer = *ch - '0'; // subtracting the ascii value of 0 turns the character argument into an int
-        
+        int interruptTimer = atoi(ch);
         int port; // used for putting the AC as a char or int to screen
 
         bool kernelMode = false;
-        
         // instruction fetch loop
-        while(PC >= 0 && PC <= 1999) {
+        while (PC >= 0 && PC <= 1999) {
             // timer interrupt every x instructions if interrupts are allowed (i.e., if we're already executing the
             // interrupt handler instructions, don't interrupt the interrupt handler)
-            if(instructionCount%interruptTimer == 0 && !kernelMode) {
+            if (instructionCount == interruptTimer && !kernelMode) {
                 // handle timer interrupt
                 int userStack = SP;
-                SP = 1999; // set stack pointer to start of system stack
+                SP = 1999;               // set stack pointer to start of system stack
                 cpuWrite(SP, userStack); // save user stack pointer to system stack
-                SP--; // decrement stack pointer (stack grows down)
-                cpuWrite(SP, PC); // save stack pointer to stack
-                PC = 1000; // set program counter to timer interrupt handler address
-                /* current system stack (SP = 1998)
+                SP--;                    // decrement stack pointer (stack grows down)
+                cpuWrite(SP, PC);
+                SP--;        // save stack pointer to stack
+                /* current system stack (SP = 1997)
                     1999 - SP
                     1998 - PC
                 */
+                PC = 1000;               // set program counter to timer interrupt handler address
                 kernelMode = true;
+                instructionCount = 1; // reset instruction count
             }
             // fetch next instruction
+            
             IR = cpuRead(PC);
+            // printf("PC: %d, IR: %d\n", PC, IR);
             PC++;
             instructionCount++;
             switch (IR) {
@@ -160,7 +155,7 @@ int main(int argc, char *argv[]) {
                     AC = cpuRead(PC);
                     PC++;
                     break;
-                case 2: // load the value at the address into the AC
+                case 2:                     // load the value at the address into the AC
                     tempAddr = cpuRead(PC); // read the address from the next address
                     AC = cpuRead(tempAddr);
                     PC++;
@@ -184,22 +179,23 @@ int main(int argc, char *argv[]) {
                 case 6: // Load from (SP+X) into the AC
                     AC = cpuRead(SP + X);
                     break;
-                case 7: // Store the value in the AC into the address 
+                case 7: // Store the value in the AC into the address
                     tempAddr = cpuRead(PC);
-                    if(tempAddr >= 1000 && !kernelMode) {
+                    if (tempAddr >= 1000 && !kernelMode)
+                    {
                         printf("Memory Violation: User program cannot access system memory.");
                         return 1007;
                     }
                     cpuWrite(tempAddr, AC);
                     PC++;
-                    // need to figure out cpu write
                     break;
                 case 8: // gets a random into from 1 to 100 into the AC
                     AC = rand() % 101;
                     break;
                 case 9: // if port=1, writes AC as an int to the screen, if port=2, writes AC as char to the screen
                     port = cpuRead(PC);
-                    if(port == 1) 
+                    printf("port, %d, put %c\n", port, AC);
+                    if(port == 1)
                         printf("%d", AC);
                     else
                         printf("%c", AC);
@@ -237,40 +233,42 @@ int main(int argc, char *argv[]) {
                     break;
                 case 20: // jump to the address
                     PC = cpuRead(PC);
-                    if(PC >= 1000 && !kernelMode) {
+                    if (PC >= 1000 && !kernelMode)
+                    {
                         printf("Memory Violation: User program cannot access system memory.");
                         return 1007;
                     }
                     break;
                 case 21: // jump to the address only if the value in the AC is zero
-                    if(AC == 0) 
+                    if (AC == 0) {
                         PC = cpuRead(PC);
-                        if(PC >= 1000 && !kernelMode) {
+                        if (PC >= 1000 && !kernelMode)
+                        {
                             printf("Memory Violation: User program cannot access system memory.");
                             return 1007;
                         }
-                    else
+                    } else
                         PC++; // increment program counter to skip operand to next instruction
                     break;
                 case 22: // jump to the address only if the value in the AC is not zero
-                    if(AC != 0) 
+                    if (AC != 0) {
                         PC = cpuRead(PC);
-                        if(PC >= 1000 && !kernelMode) {
+                        if (PC >= 1000 && !kernelMode)
+                        {
                             printf("Memory Violation: User program cannot access system memory.");
                             return 1007;
                         }
-                    else 
+                    } else
                         PC++; // increment program counter to skip operand to next instruction
                     break;
-                case 23: // push return address onto stack, jump to the address
+                case 23:              // push return address onto stack, jump to the address
                     cpuWrite(SP, PC); // push return address onto stack
                     SP--;
-                    PC++;
                     PC = cpuRead(PC); // set program counter to address
                     break;
                 case 24: // pop return address from the stack, jump to the address
-                    PC = cpuRead(SP);
                     SP++;
+                    PC = cpuRead(SP);
                     break;
                 case 25: // increment the value in X
                     X++;
@@ -279,30 +277,33 @@ int main(int argc, char *argv[]) {
                     X--;
                     break;
                 case 27: // push AC onto stack
-                    SP--;
                     cpuWrite(SP, AC);
+                    SP--;
                     break;
                 case 28: // pop from stack onto AC
-                    AC = cpuRead(SP);
                     SP++;
+                    AC = cpuRead(SP);
                     break;
                 case 29: // perform system call
                     // don't perform system call if in kernel mode
-                    if(!kernelMode) {
+                    if (!kernelMode)
+                    {
                         int userStack = SP;
-                        SP = 1999; // set stack pointer to start of system stack
+                        SP = 1999;               // set stack pointer to start of system stack
                         cpuWrite(SP, userStack); // save user stack pointer to system stack
-                        SP--; // decrement stack pointer (stack grows down)
-                        cpuWrite(SP, PC); // save stack pointer to stack
-                        PC = 1500; // set program counter to system call handler address
-                        /* current system stack (SP = 1998)
+                        SP--;                    // decrement stack pointer (stack grows down)
+                        cpuWrite(SP, PC);        // save stack pointer to stack
+                        SP--;
+                        /* current system stack (SP = 1997)
                             1999 - SP
                             1998 - PC
                         */
+                        PC = 1500;               // set program counter to system call handler address
                         kernelMode = true;
                     }
                     break;
                 case 30: // return from system call
+                    SP++;
                     PC = cpuRead(SP); // PC is on top of stack
                     SP++;
                     SP = cpuRead(SP); // SP is on bottom of stack
@@ -312,7 +313,8 @@ int main(int argc, char *argv[]) {
                     printf("End of simulation");
                     _exit(0);
                     return 0;
-                default: return 0;
+                default:
+                    return 0;
             }
         }
 
@@ -321,27 +323,24 @@ int main(int argc, char *argv[]) {
         wait(NULL);
     }
     
-}
-        
+}    
 
 // returns the opcode or operand in the line as an integer value
 int parseValue(char *line) {
-    char* restOfLine;
-    // strtol wouldn't work if the first char isn't a digit so we must check if the line is updating the address 
-    // (i.e. first character is a period) and if so copy the line over to a new line without that first character
-    if(!isdigit(line[0])) {
-        int size = strlen(line);
-        char newLine[size - 1];
-        for(int i = 1; i <= size - 1; i++) {
-            newLine[i-1] = line[i]; 
-        }
-        long longV = strtol(newLine, &restOfLine, 10); // returns a base 10 number found in newLine as a long integer
-        return (int)(longV);
+    int lineIndex = 0;
+    int numberIndex = 0;
+    char number[10];
+    //check if first char is a period
+    if(line[0] == '.') {
+        lineIndex = 1;
     }
-    else {
-        long longV = strtol(line, &restOfLine, 10); // returns a base 10 number found in line as a long integer
-        return (int)(longV);
+    while(isdigit(line[lineIndex])) {
+        number[numberIndex] = line[lineIndex];
+        lineIndex++;
+        numberIndex++;
     }
+    int value = atoi(number);
+    return value;
 }
 
 // returns the next opcode or operand at the given address

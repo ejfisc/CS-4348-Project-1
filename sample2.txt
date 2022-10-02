@@ -16,7 +16,7 @@
 
       // line one
 1    ld 4
-4         
+4
 27   push
 23   call spaces 
 206
