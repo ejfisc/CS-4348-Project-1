@@ -89,8 +89,8 @@ int main(int argc, char *argv[]) {
     if(pid == -1) { return 1002; } // fork process and return if error
 
     if (pid == 0) {
-        printf("memory");
         // memory code
+
         close(p1[0]); // memory doesn't need to read from p1
         close(p2[1]); // memory doesn't need to write to p2
         
@@ -126,7 +126,6 @@ int main(int argc, char *argv[]) {
 
     } else {    
         // CPU code
-        printf("cpu");
 
         // registers
         int PC = -1; // program counter (set to -1 because it's incremented at the beginning of the fetch loop, this way the first fetch comes from 0 and not 1)
@@ -141,14 +140,17 @@ int main(int argc, char *argv[]) {
         close(p2[0]); // CPU doesn't need to read from p2
 
         // address variables
-        int tempAddr = 0;
-        int tempAddr2 = 0;
+        int tempAddr;
+        int tempAddr2;
 
-        
+        int myCopy[2000];
+        for(int i = 0; i < 2000; i++) {
+            myCopy[i] = memory[i];
+        }
 
         int instructionCount = 1;
         
-        int port = 0; // used for putting the AC as a char or int to screen
+        int port; // used for putting the AC as a char or int to screen
 
         bool kernelMode = false;
         // instruction fetch loop
@@ -160,10 +162,10 @@ int main(int argc, char *argv[]) {
                 int userStack = SP;
                 SP = 1999;               // set stack pointer to start of system stack
                 cpuWrite(SP, userStack); // save user stack pointer to system stack
-                 
+                myCopy[SP] = userStack;
                 SP--;                    // decrement stack pointer (stack grows down)
                 cpuWrite(SP, PC);
-                 
+                myCopy[SP] = PC;
                 SP--;        // save stack pointer to stack
                 /* current system stack (SP = 1997)
                     1999 - SP
@@ -181,30 +183,36 @@ int main(int argc, char *argv[]) {
                 case 1: // load the value into the AC
                     PC++;
                     AC = cpuRead(PC);
+                    printf("AC: %d\n", AC);
                     break;
                 case 2:                     // load the value at the address into the AC
                     PC++;
                     tempAddr = cpuRead(PC); // read the address from the next address
                     AC = cpuRead(tempAddr);
+                    printf("AC: %d\n", AC);
                     break;
                 case 3: // load the value from the address found in the given addres into the AC
                     PC++;
                     tempAddr = cpuRead(PC);
                     tempAddr2 = cpuRead(tempAddr);
                     AC = cpuRead(tempAddr2);
+                    printf("AC: %d\n", AC);
                     break;
                 case 4: // load the value at address + X into the AC
                     PC++;
                     tempAddr = cpuRead(PC);
                     AC = cpuRead(tempAddr + X);
+                    printf("AC: %d\n", AC);
                     break;
                 case 5: // load the value at address + Y into the AC
                     PC++;
                     tempAddr = cpuRead(PC);
                     AC = cpuRead(tempAddr + Y);
+                    printf("AC: %d\n", AC);
                     break;
                 case 6: // Load from (SP+X) into the AC
                     AC = cpuRead(SP + X);
+                    printf("AC: %d\n", AC);
                     break;
                 case 7: // Store the value in the AC into the address
                     PC++;
@@ -215,9 +223,11 @@ int main(int argc, char *argv[]) {
                         return 1007;
                     }
                     cpuWrite(tempAddr, AC);
+                    myCopy[tempAddr] = AC;
                     break;
                 case 8: // gets a random into from 1 to 100 into the AC
                     AC = rand() % 101;
+                    printf("AC: %d\n", AC);
                     break;
                 case 9: // if port=1, writes AC as an int to the screen, if port=2, writes AC as char to the screen
                     PC++;
@@ -229,33 +239,40 @@ int main(int argc, char *argv[]) {
                     break;
                 case 10: // add the value in X to the AC
                     AC += X;
+                    printf("AC: %d\n", AC);
                     break;
                 case 11: // add the value in Y to the AC
                     AC += Y;
+                    printf("AC: %d\n", AC);
                     break;
                 case 12: // subtract the value in X from the AC
                     AC -= X;
+                    printf("AC: %d\n", AC);
                     break;
                 case 13: // subtract the value in Y from the AC
                     AC -= Y;
+                    printf("AC: %d\n", AC);
                     break;
                 case 14: // Copy the value in the AC to X
                     X = AC;
                     break;
                 case 15: // Copy the value in X to the AC
                     AC = X;
+                    printf("AC: %d\n", AC);
                     break;
                 case 16: // Copy the value in the AC to Y
                     Y = AC;
                     break;
                 case 17: // copy the value in Y to the AC
                     AC = Y;
+                    printf("AC: %d\n", AC);
                     break;
                 case 18: // copy the value in AC to the SP
                     SP = AC;
                     break;
                 case 19: // Copy the value in SP to the AC
                     AC = SP;
+                    printf("AC: %d\n", AC);
                     break;
                 case 20: // jump to the address
                     PC++;
@@ -292,10 +309,10 @@ int main(int argc, char *argv[]) {
                     break;
                 case 23:              // push return address onto stack, jump to the address
                     cpuWrite(SP, PC+2); // push return address () onto stack
+                    myCopy[SP] = PC+2;
                     SP--;
                     PC++;
                     PC = cpuRead(PC); // set program counter to address
-                    PC--; // will increment back up at beginning of loop
                     break;
                 case 24: // pop return address from the stack, jump to the address
                     SP++;
@@ -308,12 +325,14 @@ int main(int argc, char *argv[]) {
                     X--;
                     break;
                 case 27: // push AC onto stack
-                    cpuWrite(SP, AC); 
+                    cpuWrite(SP, AC);
+                    myCopy[SP] = AC;
                     SP--;
                     break;
                 case 28: // pop from stack onto AC
                     SP++;
                     AC = cpuRead(SP);
+                    printf("AC: %d\n", AC);
                     break;
                 case 29: // perform system call
                     // don't perform system call if in kernel mode
@@ -322,10 +341,10 @@ int main(int argc, char *argv[]) {
                         int userStack = SP;
                         SP = 1999;             // set stack pointer to start of system stack
                         cpuWrite(SP, userStack); // save user stack pointer to system stack
-                        
+                        myCopy[SP] = userStack;
                         SP--;                    // decrement stack pointer (stack grows down)
                         cpuWrite(SP, PC);        // save stack pointer to stack
-                         
+                        myCopy[SP] = PC;
                         SP--;
                         /* current system stack (SP = 1997)
                             1999 - SP
@@ -347,6 +366,7 @@ int main(int argc, char *argv[]) {
                     _exit(0);
                     return 0;
                 default:
+                    printf("IR: %d", IR);
                     return 0;
             }
         }
