@@ -38,10 +38,8 @@ int pop(int *SP);
 int p1[2]; // memory -> CPU pipe
 int p2[2]; // CPU -> memory pipe 
 
-
 int debugPID = 0;
 int debugOutput = 0;
-
 
 int main(int argc, char *argv[]) {
     // there should be 2 arguments, main.exe and program file name
@@ -64,10 +62,10 @@ int main(int argc, char *argv[]) {
 
     if (pid == 0) {
         // memory code
+        if(debugOutput) printf("memory\n");
 
         int memory[2000]; //0-999 for user program, 1000-1999 for system code
         memset(memory, 0, sizeof(memory)); // wipe memory
-
 
         // read user program into memory
         FILE *program = fopen(file, "r");
@@ -122,8 +120,8 @@ int main(int argc, char *argv[]) {
                 }
                 default:
                 {
-                    // printf("invalid cpu request");
-                    // return 1006;
+                    printf("invalid cpu request");
+                    return 1006;
                 }
             }
         }
@@ -165,34 +163,30 @@ int main(int argc, char *argv[]) {
                 // handle timer interrupt
                 int userStack = SP;
                 SP = 2000; // SP will get decremented down to correct 1999 in push()
-                push(&SP, userStack); // save user stack pointer to system stack                 // decrement stack pointer (stack grows down)
+                push(&SP, userStack); // save user stack pointer to system stack 
                 push(&SP, PC); // save program counter to system stack
-                /* current system stack (SP = 1998)
-                    1999 - SP
-                    1998 - PC
-                */
                 PC = 999;   // set program counter to timer interrupt handler address
                 kernelMode = true;
                 if(debugOutput) printf("[%d] ti: PC: %d, SP: %d\n", debugPID, PC, SP);
             }
-            
+
             // fetch next instruction
             PC++;
-             if(debugOutput) printf("[%d] PC: %d, ", debugPID, PC);
+            if(debugOutput) printf("[%d] PC: %d, ", debugPID, PC);
             IR = cpuRead(PC);
-             if(debugOutput) printf("IR: %d, IC: %d\n", IR, instructionCount);
+            if(debugOutput) printf("IR: %d, IC: %d\n", IR, instructionCount);
             instructionCount++;
+
             switch (IR) {
                 case 1: // load the value into the AC
                     PC++;
                     AC = cpuRead(PC);
-                     if(debugOutput) printf("[%d] case 1: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 1: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 2:  // load the value at the address into the AC
                     PC++;
                     tempAddr = cpuRead(PC); // read the address from the next address
-                    if (tempAddr >= 1000 && !kernelMode)
-                    {
+                    if (tempAddr >= 1000 && !kernelMode) {
                         printf("Memory Violation: User program cannot access system memory.");
                         return 1007;
                     }
@@ -202,14 +196,12 @@ int main(int argc, char *argv[]) {
                 case 3: // load the value from the address found in the given addres into the AC
                     PC++;
                     tempAddr = cpuRead(PC);
-                    if (tempAddr >= 1000 && !kernelMode)
-                    {
+                    if (tempAddr >= 1000 && !kernelMode) {
                         printf("Memory Violation: User program cannot access system memory.");
                         return 1007;
                     }
                     tempAddr2 = cpuRead(tempAddr);
-                    if (tempAddr2 >= 1000 && !kernelMode)
-                    {
+                    if (tempAddr2 >= 1000 && !kernelMode) {
                         printf("Memory Violation: User program cannot access system memory.");
                         return 1007;
                     }
@@ -219,33 +211,44 @@ int main(int argc, char *argv[]) {
                 case 4: // load the value at address + X into the AC
                     PC++;
                     tempAddr = cpuRead(PC);
+                    if(tempAddr+X >= 1000 && !kernelMode) {
+                        printf("Memory Violation: User program cannot access system memory.");
+                        return 1007;
+                    }
                     AC = cpuRead(tempAddr + X);
-                     if(debugOutput) printf("[%d] case 4: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 4: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 5: // load the value at address + Y into the AC
                     PC++;
                     tempAddr = cpuRead(PC);
+                    if(tempAddr+Y >= 1000 && !kernelMode) {
+                        printf("Memory Violation: User program cannot access system memory.");
+                        return 1007;
+                    }
                     AC = cpuRead(tempAddr + Y);
-                     if(debugOutput) printf("[%d] case 5: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 5: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 6: // Load from (SP+X) into the AC
+                    if(SP+X >= 1000 && !kernelMode) {
+                        printf("Memory Violation: User program cannot access system memory.");
+                        return 1007;
+                    }
                     AC = cpuRead(SP + X);
-                     if(debugOutput) printf("[%d] case 6: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 6: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 7: // Store the value in the AC into the address
                     PC++;
                     tempAddr = cpuRead(PC);
-                    if (tempAddr >= 1000 && !kernelMode)
-                    {
+                    if (tempAddr >= 1000 && !kernelMode) {
                         printf("Memory Violation: User program cannot access system memory.");
                         return 1007;
                     }
                     cpuWrite(tempAddr, AC);
-                     if(debugOutput) printf("[%d] case 7: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 7: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 8: // gets a random into from 1 to 100 into the AC
                     AC = rand() % 101;
-                     if(debugOutput) printf("[%d] case 8: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 8: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 9: // if port=1, writes AC as an int to the screen, if port=2, writes AC as char to the screen
                     PC++;
@@ -254,91 +257,86 @@ int main(int argc, char *argv[]) {
                         printf("%d", AC);
                     else
                         printf("%c", AC);
-                     if(debugOutput) printf("[%d] case 9: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 9: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 10: // add the value in X to the AC
                     AC += X;
-                     if(debugOutput) printf("[%d] case 10: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 10: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 11: // add the value in Y to the AC
                     AC += Y;
-                     if(debugOutput) printf("[%d] case 11: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 11: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 12: // subtract the value in X from the AC
                     AC -= X;
-                     if(debugOutput) printf("[%d] case 12: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 12: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 13: // subtract the value in Y from the AC
                     AC -= Y;
-                     if(debugOutput) printf("[%d] case 13: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 13: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 14: // Copy the value in the AC to X
                     X = AC;
-                     if(debugOutput) printf("[%d] case 14: PC: %d, X: %d\n", debugPID, PC, X);
+                    if(debugOutput) printf("[%d] case 14: PC: %d, X: %d\n", debugPID, PC, X);
                     break;
                 case 15: // Copy the value in X to the AC
                     AC = X;
-                     if(debugOutput) printf("[%d] case 15: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 15: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 16: // Copy the value in the AC to Y
                     Y = AC;
-                     if(debugOutput) printf("[%d] case 16: PC: %d, Y: %d\n", debugPID, PC, Y);
+                    if(debugOutput) printf("[%d] case 16: PC: %d, Y: %d\n", debugPID, PC, Y);
                     break;
                 case 17: // copy the value in Y to the AC
                     AC = Y;
-                     if(debugOutput) printf("[%d] case 17: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 17: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 18: // copy the value in AC to the SP
                     SP = AC;
-                     if(debugOutput) printf("[%d] case 18: PC: %d, SP: %d\n", debugPID, PC, SP);
+                    if(debugOutput) printf("[%d] case 18: PC: %d, SP: %d\n", debugPID, PC, SP);
                     break;
                 case 19: // Copy the value in SP to the AC
                     AC = SP;
-                     if(debugOutput) printf("[%d] case 19: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 19: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 20: // jump to the address
                     PC++;
                     PC = cpuRead(PC);
-                    if (PC >= 1000 && !kernelMode)
-                    {
+                    if (PC >= 1000 && !kernelMode) {
                         printf("Memory Violation: User program cannot access system memory.");
                         return 1007;
                     }
                     if(debugOutput) printf("[%d] case 20: PC: %d, AC: %d\n", debugPID, PC, AC);
-                    PC--;
+                    PC--; // decrement PC so it will increment back to the correct place at the beginning of the next fetch cycle
                     break;
                 case 21: // jump to the address only if the value in the AC is zero
                     if (AC == 0) {
                         PC++;
                         PC = cpuRead(PC);
-                        if (PC >= 1000 && !kernelMode)
-                        {
+                        if (PC >= 1000 && !kernelMode) {
                             printf("Memory Violation: User program cannot access system memory.");
                             return 1007;
                         }
-                        PC--;
+                        PC--; // decrement PC so it will increment back to the correct place at the beginning of the next fetch cycle
                     } else
                         PC++; // increment program counter to skip operand to next instruction
-                     if(debugOutput) printf("[%d] case 21: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 21: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 22: // jump to the address only if the value in the AC is not zero
                     if (AC != 0) {
                         PC++;
                         PC = cpuRead(PC);
-                        if (PC >= 1000 && !kernelMode)
-                        {
+                        if (PC >= 1000 && !kernelMode) {
                             printf("Memory Violation: User program cannot access system memory.");
                             return 1007;
                         }
-                        PC--;
+                        PC--; // decrement PC so it will increment back to the correct place at the beginning of the next fetch cycle
                     } else
                         PC++; // increment program counter to skip operand to next instruction
-                     if(debugOutput) printf("[%d] case 22: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 22: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
-                case 23:
-                    // SP--;              // push return address onto stack, jump to the address
-                    push(&SP, PC+2); // push return address () onto stack
-                    // SP--;
+                case 23: // push return address onto stack, jump to the address
+                    push(&SP, PC+2); //push PC + 2 so it will go to the next instruction when it returns instead of infinitely looping
                     PC++;
                     PC = cpuRead(PC); // set program counter to address
                      if(debugOutput) printf("[%d] case 23: PC: %d, SP: %d\n", debugPID, PC, SP);
@@ -346,73 +344,62 @@ int main(int argc, char *argv[]) {
                     break;
                 case 24: // pop return address from the stack, jump to the address
                     PC = pop(&SP);
-                    // SP++;
                     if(debugOutput) printf("[%d] case 24: PC: %d, SP: %d\n", debugPID, PC, SP);
-                    PC--;
+                    PC--; //PC will increment back up at beginning of loop
                     break;
                 case 25: // increment the value in X
                     X++;
-                     if(debugOutput) printf("[%d] case 25: PC: %d, X: %d\n", debugPID, PC, X);
+                    if(debugOutput) printf("[%d] case 25: PC: %d, X: %d\n", debugPID, PC, X);
                     break;
                 case 26: // decrement the value in X
                     X--;
-                     if(debugOutput) printf("[%d] case 26: PC: %d, X: %d\n", debugPID, PC, X);
+                    if(debugOutput) printf("[%d] case 26: PC: %d, X: %d\n", debugPID, PC, X);
                     break;
                 case 27: // push AC onto stack
                     push(&SP, AC);
-                    // SP--;
-                     if(debugOutput) printf("[%d] case 27: PC: %d, SP: %d\n", debugPID, PC, SP);
+                    if(debugOutput) printf("[%d] case 27: PC: %d, SP: %d\n", debugPID, PC, SP);
                     break;
                 case 28: // pop from stack onto AC
-                    // SP++;
                     AC = pop(&SP);
-                     if(debugOutput) printf("[%d] case 28: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 28: PC: %d, AC: %d\n", debugPID, PC, AC);
                     break;
                 case 29: // perform system call
                     // don't perform system call if in kernel mode
-                    if (!kernelMode)
-                    {
+                    if (!kernelMode) {
                         int userStack = SP;
-                        SP = 1999;             // set stack pointer to start of system stack
+                        SP = 1999;            // set stack pointer to start of system stack
                         push(&SP, userStack); // save user stack pointer to system stack
-                        // SP--;                    // decrement stack pointer (stack grows down)
                         push(&SP, PC);        // save stack pointer to stack
-                        // SP--;
-                        /* current system stack (SP = 1997)
-                            1999 - SP
-                            1998 - PC
-                        */
-                        PC = 1499;               // set program counter to system call handler address
+                        PC = 1499;            // set program counter to system call handler address, will increment to 1500 at beginning of loop
                         kernelMode = true;
                         if(debugOutput) printf("[%d] case 29: PC: %d, SP: %d\n", debugPID, PC, SP);
                     }
-                     
                     break;
                 case 30: // return from system call
-                    // SP++;
                     PC = pop(&SP); // PC is on top of stack
-                    // SP++;
                     SP = pop(&SP); // SP is on bottom of stack
                     kernelMode = false;
                     if(debugOutput) printf("[%d] case 30: PC: %d, SP: %d\n", debugPID, PC, SP);
                     break;
                 case 50: // end execution
                     printf("End of simulation");
-                     if(debugOutput) printf("[%d] case 50: PC: %d, AC: %d\n", debugPID, PC, AC);
+                    if(debugOutput) printf("[%d] case 50: PC: %d, AC: %d\n", debugPID, PC, AC);
                     _exit(0);
                     return 0;
                 default:
-                     if(debugOutput) printf("[%d] case null: PC: %d, IR: %d\n", debugPID, PC, IR);
+                    if(debugOutput) printf("[%d] case null: PC: %d, IR: %d\n", debugPID, PC, IR);
                     return 0;
             }
         }
+
+        // send a request with 'n' no op so the memory read loop will break
         struct cpuRequest stopReq;
         stopReq.op = 'n';
         if(write(p2[1], &stopReq, sizeof(stopReq)) == -1) { return 1004; } // write to pipe2 and return code if error
+        // close pipes
         close(p1[0]);
         close(p2[1]);
-        wait(NULL);
-        
+        wait(NULL); // wait for child process to finish
     }
     
 }    
@@ -464,11 +451,13 @@ int cpuWrite(int address, int value) {
     return 0;
 }
 
+// decrements SP then pushes value onto stack at SP
 void push(int *SP, int value) {
     (*SP)--;
     cpuWrite(*SP, value);
 }
 
+// reads value from SP then increments SP, returns the value read from stack
 int pop(int *SP) {
     int value = cpuRead(*SP);
     (*SP)++;
