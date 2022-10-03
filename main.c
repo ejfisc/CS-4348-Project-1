@@ -39,7 +39,7 @@ int p1[2]; // memory -> CPU pipe
 int p2[2]; // CPU -> memory pipe 
 
 int debugPID = 0;
-int debugOutput = 0;
+int debugOutput = 0; // set to 1 to print debug statements
 
 int main(int argc, char *argv[]) {
     // there should be 2 arguments, main.exe and program file name
@@ -86,6 +86,12 @@ int main(int argc, char *argv[]) {
             }
         }
         fclose(program); // done reading, close file
+
+        if(debugOutput) {
+            for(int i = 0; i < 2000; i++) {
+                printf("m[%d]: %d\n", i, memory[i]);
+            }
+        }
 
         close(p1[0]); // memory doesn't need to read from p1
         close(p2[1]); // memory doesn't need to write to p2

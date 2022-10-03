@@ -1,0 +1,44 @@
+  // prints out 5*5=25
+
+1 ld 5
+5
+9 output 5
+1
+14 X = 5
+26
+1    ld asterisk
+42    
+9    output *
+2
+1 ld 5
+5
+9 output 5
+1
+16 Y = 5
+1  ld =
+61 
+9 
+2 output =
+1 AC = 5
+5
+27 push(AC) 
+20 go to for loop at address 27
+28
+28 AC = pop() (address 24)
+9 output AC
+1
+50 end
+
+ for: 
+28 AC = pop() (Address 28)
+11 AC = AC + Y
+27 push(AC)
+26 X--
+15 AC = X
+21 go to 22 if AC == 0
+24
+20 go back to beginning of for loop
+28
+
+.1000
+30
